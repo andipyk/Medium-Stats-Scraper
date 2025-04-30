@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Medium Stats Scraper",
+  "version": "1.0",
+  "description": "Scrape Medium stats and export to CSV",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://medium.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://medium.com/me/stats*"],
+      "js": [
+        "extractors/statsExtractor.js",
+        "utils/numberHelper.js",
+        "content.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "extractors/statsExtractor.js",
+        "utils/numberHelper.js"
+      ],
+      "matches": ["https://medium.com/*"]
+    }
+  ]
+} 
