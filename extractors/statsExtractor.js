@@ -1,6 +1,7 @@
 // Helper function to convert string to number
 function convertToNumber(str) {
   if (!str) return 0;
+  
   // Remove any commas and trim whitespace
   str = str.replace(/,/g, '').trim();
   
@@ -12,6 +13,12 @@ function convertToNumber(str) {
     return parseFloat(str.replace('K', '')) * 1000;
   }
   
+  // Handle M suffix
+  if (str.endsWith('M')) {
+    return parseFloat(str.replace('M', '')) * 1000000;
+  }
+  
+  // If we can't parse it, return 0
   return 0;
 }
 
@@ -81,21 +88,25 @@ const statsExtractor = {
         
         // Look for views
         if (line.includes('Views') && currentArticle) {
-          const viewsLine = lines[i - 1].trim();
-          currentArticle.views = window.numberHelper.convertToNumber(viewsLine);
+          const viewsLine = lines[i - 1]?.trim();
+          if (viewsLine) {
+            currentArticle.views = convertToNumber(viewsLine);
+          }
         }
         
         // Look for reads
         if (line.includes('Reads') && currentArticle) {
-          const readsLine = lines[i - 1].trim();
-          currentArticle.reads = window.numberHelper.convertToNumber(readsLine);
+          const readsLine = lines[i - 1]?.trim();
+          if (readsLine) {
+            currentArticle.reads = convertToNumber(readsLine);
+          }
         }
         
         // Look for earnings
         if (line.includes('Earnings') && currentArticle) {
-          const earningsLine = lines[i - 1].trim();
-          if (earningsLine !== '-') {
-            currentArticle.earnings = window.numberHelper.convertToNumber(earningsLine.replace('$', ''));
+          const earningsLine = lines[i - 1]?.trim();
+          if (earningsLine && earningsLine !== '-') {
+            currentArticle.earnings = convertToNumber(earningsLine.replace('$', ''));
           }
         }
       }
