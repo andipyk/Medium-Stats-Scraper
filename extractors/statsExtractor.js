@@ -10,12 +10,14 @@ function convertToNumber(str) {
   
   // Handle K suffix
   if (str.endsWith('K')) {
-    return parseFloat(str.replace('K', '')) * 1000;
+    const num = parseFloat(str.replace('K', ''));
+    return Math.round(num * 1000);
   }
   
   // Handle M suffix
   if (str.endsWith('M')) {
-    return parseFloat(str.replace('M', '')) * 1000000;
+    const num = parseFloat(str.replace('M', ''));
+    return Math.round(num * 1000000);
   }
   
   // If we can't parse it, return 0
