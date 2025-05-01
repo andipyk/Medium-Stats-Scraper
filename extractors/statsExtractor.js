@@ -25,12 +25,21 @@ function convertToNumber(str) {
 }
 
 const statsExtractor = {
+  // Cache for frequently used regex patterns
+  patterns: {
+    minRead: /min read/,
+    views: /Views/,
+    reads: /Reads/,
+    earnings: /Earnings/,
+    number: /[.,]/g,
+    whitespace: /[·\s]+/g
+  },
+
   // Extract stats from text content
   extractStats(textContent) {
     try {
       console.log('Starting stats extraction...');
       
-      // Find the "Latest" section
       const latestIndex = textContent.indexOf('Latest');
       if (latestIndex === -1) {
         console.log('No Latest section found');
@@ -40,45 +49,26 @@ const statsExtractor = {
       const contentAfterLatest = textContent.substring(latestIndex);
       const articles = [];
       
-      // Split content into lines and clean up
+      // Pre-process lines once
       const lines = contentAfterLatest.split('\n')
         .map(line => line.trim())
         .filter(line => line.length > 0);
       
       let currentArticle = null;
+      let i = 0;
       
-      for (let i = 0; i < lines.length; i++) {
+      while (i < lines.length) {
         const line = lines[i];
         
-        // If line contains "min read", this is a new article
-        if (line.includes('min read')) {
-          // If we have a previous article, save it
+        if (this.patterns.minRead.test(line)) {
           if (currentArticle) {
             articles.push(currentArticle);
           }
           
-          // Look for the title (2 lines above "min read")
-          let titleLine = '';
-          for (let j = 2; j <= 4; j++) {
-            const potentialTitleLine = lines[i - j];
-            if (potentialTitleLine && 
-                !potentialTitleLine.includes('min read') && 
-                !potentialTitleLine.includes('Views') && 
-                !potentialTitleLine.includes('Reads') && 
-                !potentialTitleLine.includes('Earnings') &&
-                !potentialTitleLine.includes('·') &&
-                potentialTitleLine.length > 0) {
-              titleLine = potentialTitleLine;
-              break;
-            }
-          }
+          // Optimized title search
+          const titleLine = this.findTitle(lines, i);
+          const title = titleLine.replace(this.patterns.whitespace, ' ').trim();
           
-          // Clean up title
-          const title = titleLine
-            .replace(/[·\s]+/g, ' ') // Replace multiple spaces and dots with single space
-            .trim();
-          
-          // Start new article
           currentArticle = {
             title: title || 'Unknown Title',
             views: 0,
@@ -86,41 +76,14 @@ const statsExtractor = {
             earnings: 0
           };
           
-          // Look for stats in the next lines
-          let j = i + 1;
-          while (j < lines.length && !lines[j].includes('min read')) {
-            const currentLine = lines[j];
-            
-            // Look for Views
-            if (currentLine === 'Views' && j > 0) {
-              const viewsValue = lines[j - 1];
-              if (viewsValue) {
-                currentArticle.views = convertToNumber(viewsValue);
-              }
-            }
-            
-            // Look for Reads
-            if (currentLine === 'Reads' && j > 0) {
-              const readsValue = lines[j - 1];
-              if (readsValue) {
-                currentArticle.reads = convertToNumber(readsValue);
-              }
-            }
-            
-            // Look for Earnings
-            if (currentLine === 'Earnings' && j > 0) {
-              const earningsValue = lines[j - 1];
-              if (earningsValue && earningsValue !== '-') {
-                currentArticle.earnings = convertToNumber(earningsValue.replace('$', ''));
-              }
-            }
-            
-            j++;
-          }
+          // Process stats in one pass
+          i = this.processStats(lines, i + 1, currentArticle);
+          continue;
         }
+        
+        i++;
       }
       
-      // Add the last article if exists
       if (currentArticle) {
         articles.push(currentArticle);
       }
@@ -131,6 +94,46 @@ const statsExtractor = {
       console.error('Error extracting stats:', error);
       return [];
     }
+  },
+
+  // Helper method to find title
+  findTitle(lines, currentIndex) {
+    for (let j = 2; j <= 4; j++) {
+      const potentialTitleLine = lines[currentIndex - j];
+      if (potentialTitleLine && 
+          !this.patterns.minRead.test(potentialTitleLine) && 
+          !this.patterns.views.test(potentialTitleLine) && 
+          !this.patterns.reads.test(potentialTitleLine) && 
+          !this.patterns.earnings.test(potentialTitleLine) &&
+          !potentialTitleLine.includes('·') &&
+          potentialTitleLine.length > 0) {
+        return potentialTitleLine;
+      }
+    }
+    return '';
+  },
+
+  // Helper method to process stats
+  processStats(lines, startIndex, article) {
+    let i = startIndex;
+    while (i < lines.length && !this.patterns.minRead.test(lines[i])) {
+      const currentLine = lines[i];
+      
+      if (i > 0) {
+        const prevLine = lines[i - 1];
+        
+        if (this.patterns.views.test(currentLine)) {
+          article.views = convertToNumber(prevLine);
+        } else if (this.patterns.reads.test(currentLine)) {
+          article.reads = convertToNumber(prevLine);
+        } else if (this.patterns.earnings.test(currentLine) && prevLine !== '-') {
+          article.earnings = convertToNumber(prevLine.replace('$', ''));
+        }
+      }
+      
+      i++;
+    }
+    return i;
   },
 
   // Format earnings as dollars without commas or decimals
