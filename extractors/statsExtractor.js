@@ -60,12 +60,18 @@ const statsExtractor = {
       while (i < lines.length) {
         const line = lines[i];
         
+        // Skip month headers (e.g. "Apr 2025", "Mar 2025")
+        if (/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}$/.test(line)) {
+          i++;
+          continue;
+        }
+        
         if (this.patterns.minRead.test(line)) {
           if (currentArticle) {
             articles.push(currentArticle);
           }
           
-          // Optimized title search
+          // Find title by looking backwards until we find a non-empty line that's not a stat
           const titleLine = this.findTitle(lines, i);
           const title = titleLine.replace(this.patterns.whitespace, ' ').trim();
           
@@ -88,8 +94,17 @@ const statsExtractor = {
         articles.push(currentArticle);
       }
       
-      console.log(`Found ${articles.length} articles`);
-      return articles;
+      // Filter out articles with invalid titles (just numbers or empty)
+      const validArticles = articles.filter(article => {
+        const title = article.title;
+        return title && 
+               title !== 'Unknown Title' && 
+               !/^\d+$/.test(title) &&
+               !/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}/.test(title);
+      });
+      
+      console.log(`Found ${validArticles.length} valid articles`);
+      return validArticles;
     } catch (error) {
       console.error('Error extracting stats:', error);
       return [];
@@ -98,18 +113,35 @@ const statsExtractor = {
 
   // Helper method to find title
   findTitle(lines, currentIndex) {
-    for (let j = 2; j <= 4; j++) {
+    // Check if this is a non-monetized page by looking for "Apply to Partner Program"
+    const isNonMonetized = lines.some(line => line.includes('Apply to Partner Program'));
+    
+    // Look backwards for the title, skipping empty lines and stat lines
+    for (let j = 1; j <= 5; j++) {
       const potentialTitleLine = lines[currentIndex - j];
-      if (potentialTitleLine && 
-          !this.patterns.minRead.test(potentialTitleLine) && 
-          !this.patterns.views.test(potentialTitleLine) && 
-          !this.patterns.reads.test(potentialTitleLine) && 
-          !this.patterns.earnings.test(potentialTitleLine) &&
-          !potentialTitleLine.includes('·') &&
-          potentialTitleLine.length > 0) {
+      if (!potentialTitleLine) continue;
+      
+      // Skip if line is just a number or month header
+      if (/^\d+$/.test(potentialTitleLine) || 
+          /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}/.test(potentialTitleLine)) {
+        continue;
+      }
+      
+      // Skip stat labels and metadata
+      if (this.patterns.minRead.test(potentialTitleLine) ||
+          this.patterns.views.test(potentialTitleLine) ||
+          this.patterns.reads.test(potentialTitleLine) ||
+          (!isNonMonetized && this.patterns.earnings.test(potentialTitleLine)) ||
+          potentialTitleLine.includes('·')) {
+        continue;
+      }
+      
+      // Found a valid title
+      if (potentialTitleLine.trim().length > 0) {
         return potentialTitleLine;
       }
     }
+    
     return '';
   },
 
@@ -119,15 +151,32 @@ const statsExtractor = {
     while (i < lines.length && !this.patterns.minRead.test(lines[i])) {
       const currentLine = lines[i];
       
-      if (i > 0) {
-        const prevLine = lines[i - 1];
+      // Check if current line is a label
+      if (this.patterns.views.test(currentLine)) {
+        // Check both previous and next lines for the value
+        const prevLine = i > 0 ? lines[i - 1] : '';
+        const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
         
-        if (this.patterns.views.test(currentLine)) {
-          article.views = convertToNumber(prevLine);
-        } else if (this.patterns.reads.test(currentLine)) {
-          article.reads = convertToNumber(prevLine);
-        } else if (this.patterns.earnings.test(currentLine) && prevLine !== '-') {
-          article.earnings = convertToNumber(prevLine.replace('$', ''));
+        // Try to get the value from either line
+        const value = convertToNumber(prevLine) || convertToNumber(nextLine);
+        article.views = value;
+      } else if (this.patterns.reads.test(currentLine)) {
+        // Check both previous and next lines for the value
+        const prevLine = i > 0 ? lines[i - 1] : '';
+        const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
+        
+        // Try to get the value from either line
+        const value = convertToNumber(prevLine) || convertToNumber(nextLine);
+        article.reads = value;
+      } else if (this.patterns.earnings.test(currentLine)) {
+        // Check both previous and next lines for the value
+        const prevLine = i > 0 ? lines[i - 1] : '';
+        const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
+        
+        // Try to get the value from either line, but skip if it's a dash
+        if (prevLine !== '-' && nextLine !== '-') {
+          const value = convertToNumber(prevLine.replace('$', '')) || convertToNumber(nextLine.replace('$', ''));
+          article.earnings = value;
         }
       }
       
