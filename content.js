@@ -99,18 +99,27 @@ const contentScript = {
     // Scroll to bottom to load all lazy-loaded content
     await new Promise(resolve => {
       let lastScrollHeight = 0;
+      let attempts = 0;
+      const maxAttempts = 10;
+      
       const scrollInterval = setInterval(() => {
         window.scrollTo(0, document.body.scrollHeight);
+        
         if (document.body.scrollHeight === lastScrollHeight) {
-          clearInterval(scrollInterval);
-          resolve();
+          attempts++;
+          if (attempts >= maxAttempts) {
+            clearInterval(scrollInterval);
+            resolve();
+          }
+        } else {
+          attempts = 0;
+          lastScrollHeight = document.body.scrollHeight;
         }
-        lastScrollHeight = document.body.scrollHeight;
-      }, 100);
+      }, 500);
     });
     
     // Wait for any dynamic content to load
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     console.log('Page refresh complete');
   },
 

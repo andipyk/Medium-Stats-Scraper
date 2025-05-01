@@ -40,28 +40,27 @@ const statsExtractor = {
       const contentAfterLatest = textContent.substring(latestIndex);
       const articles = [];
       
-      // Split content into lines
-      const lines = contentAfterLatest.split('\n');
+      // Split content into lines and clean up
+      const lines = contentAfterLatest.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
       
       let currentArticle = null;
       
       for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
+        const line = lines[i];
         
-        // Skip empty lines
-        if (!line) continue;
-        
-        // If line contains "min read", look 6 lines above for the title
+        // If line contains "min read", this is a new article
         if (line.includes('min read')) {
           // If we have a previous article, save it
           if (currentArticle) {
             articles.push(currentArticle);
           }
           
-          // Look 6 lines above for the title
+          // Look for the title (2 lines above "min read")
           let titleLine = '';
-          for (let j = 1; j <= 6; j++) {
-            const potentialTitleLine = lines[i - j]?.trim();
+          for (let j = 2; j <= 4; j++) {
+            const potentialTitleLine = lines[i - j];
             if (potentialTitleLine && 
                 !potentialTitleLine.includes('min read') && 
                 !potentialTitleLine.includes('Views') && 
@@ -86,29 +85,37 @@ const statsExtractor = {
             reads: 0,
             earnings: 0
           };
-        }
-        
-        // Look for views
-        if (line.includes('Views') && currentArticle) {
-          const viewsLine = lines[i - 1]?.trim();
-          if (viewsLine) {
-            currentArticle.views = convertToNumber(viewsLine);
-          }
-        }
-        
-        // Look for reads
-        if (line.includes('Reads') && currentArticle) {
-          const readsLine = lines[i - 1]?.trim();
-          if (readsLine) {
-            currentArticle.reads = convertToNumber(readsLine);
-          }
-        }
-        
-        // Look for earnings
-        if (line.includes('Earnings') && currentArticle) {
-          const earningsLine = lines[i - 1]?.trim();
-          if (earningsLine && earningsLine !== '-') {
-            currentArticle.earnings = convertToNumber(earningsLine.replace('$', ''));
+          
+          // Look for stats in the next lines
+          let j = i + 1;
+          while (j < lines.length && !lines[j].includes('min read')) {
+            const currentLine = lines[j];
+            
+            // Look for Views
+            if (currentLine === 'Views' && j > 0) {
+              const viewsValue = lines[j - 1];
+              if (viewsValue) {
+                currentArticle.views = convertToNumber(viewsValue);
+              }
+            }
+            
+            // Look for Reads
+            if (currentLine === 'Reads' && j > 0) {
+              const readsValue = lines[j - 1];
+              if (readsValue) {
+                currentArticle.reads = convertToNumber(readsValue);
+              }
+            }
+            
+            // Look for Earnings
+            if (currentLine === 'Earnings' && j > 0) {
+              const earningsValue = lines[j - 1];
+              if (earningsValue && earningsValue !== '-') {
+                currentArticle.earnings = convertToNumber(earningsValue.replace('$', ''));
+              }
+            }
+            
+            j++;
           }
         }
       }
